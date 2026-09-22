@@ -290,7 +290,6 @@ jobs:
           DYNATRACE_DEBUG: "true"
           DT_NO_REPAIR_INPUT: "false"
           DYNATRACE_ENV_URL: ${{ secrets.DYNATRACE_ENV_URL }}
-          DYNATRACE_WIF_VENDOR: "github"
           # An audience identifies who a token is meant for, so it is not a credential - but it has to
           # match what the Dynatrace environment was told to expect.
           DYNATRACE_WIF_AUDIENCE: "my-test-audience"
@@ -339,7 +338,6 @@ jobs:
           DYNATRACE_DEBUG: "true"
           DT_NO_REPAIR_INPUT: "false"
           DYNATRACE_ENV_URL: ${{ secrets.DYNATRACE_ENV_URL }}
-          DYNATRACE_WIF_VENDOR: "github"
           DYNATRACE_WIF_AUDIENCE: "my-test-audience"
         run: |
           mkdir -p test-results/sequential

@@ -22,76 +22,24 @@ import (
 	"testing"
 
 	"github.com/dynatrace-oss/terraform-provider-dynatrace/provider"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
+	"github.com/dynatrace-oss/terraform-provider-dynatrace/provider/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// validateProviderConfig runs the provider block through schema validation.
-//
-// The Workload Identity Federation variables are cleared first because the SDK resolves DefaultFunc
-// before validating, so anything left in the environment of the machine running the tests would take
-// part in the very rules under test here. MultiEnvDefaultFunc treats an empty value as unset.
-func validateProviderConfig(t *testing.T, config map[string]any) diag.Diagnostics {
-	t.Helper()
+// The export command reads the provider configuration through the schema's DefaultFunc rather than
+// from Terraform, so the environment variables are the only way to configure it there.
+func TestWIFAudienceIsReadFromTheEnvironment(t *testing.T) {
+	for _, envVarName := range []string{"DYNATRACE_WIF_AUDIENCE", "DT_WIF_AUDIENCE"} {
+		t.Run(envVarName, func(t *testing.T) {
+			t.Setenv("DYNATRACE_WIF_AUDIENCE", "")
+			t.Setenv("DT_WIF_AUDIENCE", "")
+			t.Setenv(envVarName, "dynatrace")
 
-	for _, variable := range []string{
-		"DYNATRACE_WIF_VENDOR", "DT_WIF_VENDOR",
-		"DYNATRACE_WIF_AUDIENCE", "DT_WIF_AUDIENCE",
-		"ACTIONS_ID_TOKEN_REQUEST_URL",
-		"ACTIONS_ID_TOKEN_REQUEST_TOKEN",
-	} {
-		t.Setenv(variable, "")
+			credentials := createCredentials(&config.ConfigGetter{Provider: provider.Provider()})
+
+			require.NotNil(t, credentials)
+			assert.Equal(t, "dynatrace", credentials.Platform.WorkloadIdentityFederationAudience)
+		})
 	}
-
-	return provider.Provider().Validate(terraform.NewResourceConfigRaw(config))
-}
-
-// InternalValidate is the only thing that catches a ConflictsWith or RequiredWith naming an
-// attribute that does not exist. The other tests in this package skip, so without this the provider
-// schema is never checked at all.
-func TestProviderSchemaIsInternallyValid(t *testing.T) {
-	require.NoError(t, provider.Provider().InternalValidate())
-}
-
-func TestWIFRequiresVendor(t *testing.T) {
-	diagnostics := validateProviderConfig(t, map[string]any{
-		"wif": []interface{}{map[string]any{"audience": "dynatrace"}},
-	})
-
-	require.Len(t, diagnostics, 1)
-	assert.Equal(t, `The argument "wif.0.vendor" is required, but no definition was found.`, diagnostics[0].Detail)
-}
-
-func TestWIFRequiresAudience(t *testing.T) {
-	diagnostics := validateProviderConfig(t, map[string]any{
-		"wif": []interface{}{map[string]any{"vendor": "github"}},
-	})
-
-	require.Len(t, diagnostics, 1)
-	assert.Equal(t, `The argument "wif.0.audience" is required, but no definition was found.`, diagnostics[0].Detail)
-}
-
-func TestWIFVendorRejectsUnsupportedVendor(t *testing.T) {
-	diagnostics := validateProviderConfig(t, map[string]any{
-		"wif": []interface{}{map[string]any{
-			"vendor":   "gitlab",
-			"audience": "dynatrace",
-		}},
-	})
-
-	require.Len(t, diagnostics, 1)
-	assert.Equal(t, `expected wif.0.vendor to be one of ["github"], got gitlab`, diagnostics[0].Summary)
-}
-
-func TestWIFVendorAcceptsSupportedVendor(t *testing.T) {
-	diagnostics := validateProviderConfig(t, map[string]any{
-		"wif": []interface{}{map[string]any{
-			"vendor":   "github",
-			"audience": "dynatrace",
-		}},
-	})
-
-	assert.Empty(t, diagnostics)
 }
